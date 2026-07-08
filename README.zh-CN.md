@@ -11,17 +11,20 @@
 ```bash
 docker pull azure99/agentbox:latest
 
+# `AB_GEN_CODEX_CONFIG=true` 和 `AB_GEN_CLAUDE_CONFIG=true` 会根据 API 环境变量生成 CLI 配置文件。
 docker run --rm -it --platform linux/amd64 \
+  -e AB_GEN_CODEX_CONFIG=true \
+  -e AB_GEN_CLAUDE_CONFIG=true \
   -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+  -e OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}" \
   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  -e ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}" \
   -e GITHUB_TOKEN="$GITHUB_TOKEN" \
-  # --group-add "$(stat -c '%g' /var/run/docker.sock)" \
-  # -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$PWD/work:/workspace" -w /workspace \
   azure99/agentbox:latest
 ```
 
-环境变量和宿主 Docker socket 按需取消注释，镜像仅含 Docker client。
+需要宿主 Docker socket 时，在 `docker run` 中加入 `--group-add "$(stat -c '%g' /var/run/docker.sock)"` 和 `-v /var/run/docker.sock:/var/run/docker.sock`。镜像仅含 Docker client。
 
 ## 从源码构建
 

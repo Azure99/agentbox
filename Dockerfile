@@ -284,7 +284,10 @@ RUN if getent passwd 1000 >/dev/null; then userdel --remove "$(getent passwd 100
     && chown -R agent:agent /workspace /home/agent \
     && chmod 0700 /home/agent/.ssh
 
+COPY --chmod=0755 scripts/agentbox-entrypoint.sh /usr/local/bin/agentbox-entrypoint
+
 # Final runtime defaults.
 USER agent
 WORKDIR /workspace
+ENTRYPOINT ["/usr/local/bin/agentbox-entrypoint"]
 CMD ["/bin/bash"]

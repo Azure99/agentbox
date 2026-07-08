@@ -1,3 +1,6 @@
 *
 !Dockerfile
 !.dockerignore
+!scripts/
+scripts/**
+!scripts/agentbox-entrypoint.sh
