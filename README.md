@@ -4,7 +4,7 @@
 
 An all-in-one work image for AI agents.
 
-Preinstalled tools: Python (pipx/uv/uvx), Node (npm/npx/pnpm), Go, Rust, Playwright Chromium, Codex CLI, Claude Code, GitHub CLI, Docker CLI (buildx/Compose), plus common build, debugging, networking, data, media, PDF, and font tools.
+Preinstalled tools: Python (pipx/uv/uvx), Node (npm/npx/pnpm), Go, Rust, Playwright, Chrome, Codex CLI, Claude Code, GitHub CLI, Docker CLI (buildx/Compose), plus common build, debugging, networking, data, media, PDF, and font tools.
 
 ## Usage
 

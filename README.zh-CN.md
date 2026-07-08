@@ -4,7 +4,7 @@
 
 为 AI Agent 准备的全家桶工作镜像。
 
-预装工具：Python (pipx/uv/uvx)、Node (npm/npx/pnpm)、Go、Rust、Playwright Chromium、Codex CLI、Claude Code、GitHub CLI、Docker CLI (buildx/Compose)，以及常见构建、调试、网络、数据、媒体、PDF、字体工具。
+预装工具：Python (pipx/uv/uvx)、Node (npm/npx/pnpm)、Go、Rust、Playwright、Chrome、Codex CLI、Claude Code、GitHub CLI、Docker CLI (buildx/Compose)，以及常见构建、调试、网络、数据、媒体、PDF、字体工具。
 
 ## 使用
 

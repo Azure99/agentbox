@@ -4,7 +4,7 @@
 FROM ubuntu:24.04
 
 LABEL org.opencontainers.image.title="agentbox" \
-      org.opencontainers.image.description="Ubuntu 24.04 linux/amd64 personal agent box with language runtimes, agent CLIs, Chromium, and distro build/debug/data/media/PDF/font tools"
+      org.opencontainers.image.description="Ubuntu 24.04 linux/amd64 personal agent box with language runtimes, agent CLIs, Chrome, and distro build/debug/data/media/PDF/font tools"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
@@ -26,7 +26,6 @@ ENV GOPATH=/home/agent/go
 ENV GOBIN=/home/agent/go/bin
 ENV GOCACHE=/home/agent/.cache/go-build
 ENV RUSTUP_HOME=/opt/rust/rustup
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PATH=/home/agent/.local/bin:/home/agent/.local/share/pnpm:/home/agent/go/bin:/home/agent/.cargo/bin:/opt/npm-global/bin:/usr/local/go/bin:/opt/rust/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Base apt carrying surface.
@@ -85,25 +84,17 @@ RUN apt-get update \
         fonts-noto-cjk \
         fonts-noto-color-emoji \
         libasound2t64 \
-        libatk-bridge2.0-0t64 \
-        libatk1.0-0t64 \
-        libatspi2.0-0t64 \
         libcairo2 \
-        libcups2t64 \
         libdbus-1-3 \
         libdrm2 \
-        libegl1 \
         libgbm1 \
         libglib2.0-0t64 \
-        libgtk-3-0t64 \
         libnspr4 \
         libnss3 \
         libpango-1.0-0 \
         libx11-6 \
         libx11-xcb1 \
         libxcb1 \
-        libxcomposite1 \
-        libxdamage1 \
         libxext6 \
         libxfixes3 \
         libxkbcommon0 \
@@ -116,6 +107,18 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Google Chrome.
+RUN set -eux; \
+    install -m 0755 -d /etc/apt/keyrings; \
+    curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused --output /etc/apt/keyrings/google-chrome.asc https://dl.google.com/linux/linux_signing_key.pub; \
+    chmod a+r /etc/apt/keyrings/google-chrome.asc; \
+    printf '%s\n' 'deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] https://dl.google.com/linux/chrome/deb/ stable main' >/etc/apt/sources.list.d/google-chrome.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends google-chrome-stable; \
+    google-chrome --version; \
+    test -x /opt/google/chrome/chrome; \
+    rm -rf /var/lib/apt/lists/*
 
 # Node/npm/npx from upstream latest LTS.
 RUN set -eux; \
@@ -178,23 +181,21 @@ RUN set -eux; \
     chown -R root:root /usr/local/go /opt/rust; \
     chmod -R go-w /usr/local/go /opt/rust
 
-# npm-based tools: pnpm, Playwright Chromium, Codex CLI, and Claude Code.
+# npm-based tools: pnpm, Playwright, Codex CLI, and Claude Code.
 RUN set -eux; \
     build_home="$(mktemp -d)"; \
-    trap 'rm -rf "${build_home}" /root/.npm /root/.cache/ms-playwright' EXIT; \
+    trap 'rm -rf "${build_home}" /root/.npm' EXIT; \
     export HOME="${build_home}"; \
     export XDG_CACHE_HOME="${build_home}/.cache"; \
     export NPM_CONFIG_CACHE="${build_home}/.cache/npm"; \
     export NPM_CONFIG_USERCONFIG="${build_home}/.npmrc"; \
-    mkdir -p "${build_home}/.cache/npm" /opt/npm-global /opt/playwright /opt/agent-cli /ms-playwright; \
+    mkdir -p "${build_home}/.cache/npm" /opt/npm-global /opt/playwright /opt/agent-cli; \
     NPM_CONFIG_PREFIX=/opt/npm-global npm install -g pnpm@latest --no-audit --no-fund --loglevel=error; \
     test -x /opt/npm-global/bin/pnpm; \
     /opt/npm-global/bin/pnpm --version; \
     PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --prefix /opt/playwright @playwright/test@latest --no-audit --no-fund --loglevel=error; \
     ln -sf /opt/playwright/node_modules/.bin/playwright /usr/local/bin/playwright; \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright /opt/playwright/node_modules/.bin/playwright install chromium; \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright node -e 'const { chromium }=require("/opt/playwright/node_modules/playwright"); (async () => { let browser; try { browser=await chromium.launch({ headless: true }); const page=await browser.newPage(); await page.goto("data:text/html,<title>pw-smoke</title><body>ok</body>"); const title=await page.title(); if (title !== "pw-smoke") throw new Error(`unexpected title: ${title}`); } finally { if (browser) await browser.close(); } })().catch(error => { console.error(error); process.exit(1); });'; \
-    rm -rf /ms-playwright/ffmpeg-*; \
+    node -e 'const { chromium }=require("/opt/playwright/node_modules/playwright"); (async () => { let browser; try { browser=await chromium.launch({ channel: "chrome", headless: true }); const page=await browser.newPage(); await page.goto("data:text/html,<title>pw-smoke</title><body>ok</body>"); const title=await page.title(); if (title !== "pw-smoke") throw new Error(`unexpected title: ${title}`); } finally { if (browser) await browser.close(); } })().catch(error => { console.error(error); process.exit(1); });'; \
     npm install --prefix /opt/agent-cli @openai/codex@latest @anthropic-ai/claude-code@latest --no-audit --no-fund --loglevel=error; \
     test -x /opt/agent-cli/node_modules/.bin/codex; \
     test -x /opt/agent-cli/node_modules/.bin/claude; \
@@ -202,8 +203,8 @@ RUN set -eux; \
     ln -sf /opt/agent-cli/node_modules/.bin/claude /usr/local/bin/claude; \
     codex --version; \
     claude --version; \
-    chown -R root:root /opt/npm-global /opt/playwright /opt/agent-cli /ms-playwright; \
-    chmod -R go-w /opt/npm-global /opt/playwright /opt/agent-cli /ms-playwright
+    chown -R root:root /opt/npm-global /opt/playwright /opt/agent-cli; \
+    chmod -R go-w /opt/npm-global /opt/playwright /opt/agent-cli
 
 # GitHub CLI from the official apt repository.
 RUN set -eux; \
@@ -286,7 +287,6 @@ RUN if getent passwd 1000 >/dev/null; then userdel --remove "$(getent passwd 100
 
 COPY --chmod=0755 scripts/agentbox-entrypoint.sh /usr/local/bin/agentbox-entrypoint
 
-# Final runtime defaults.
 USER agent
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/agentbox-entrypoint"]

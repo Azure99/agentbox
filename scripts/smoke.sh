@@ -170,14 +170,19 @@ check_local_tool_behaviors() {
   esac
 }
 
-check_playwright_chromium() {
-  PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/ms-playwright}" node <<'NODE'
+check_playwright_chrome() {
+  require_command google-chrome
+  require_executable /opt/google/chrome/chrome
+
+  google-chrome --version >/dev/null
+
+  node <<'NODE'
 const { chromium } = require("/opt/playwright/node_modules/playwright");
 
 (async () => {
   let browser;
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ channel: "chrome", headless: true });
     const page = await browser.newPage();
     await page.goto("data:text/html,<title>pw-smoke</title><body>ok</body>");
     const title = await page.title();
@@ -201,4 +206,4 @@ check_command_surface
 check_docker_client_surface
 check_python_surface
 check_local_tool_behaviors
-check_playwright_chromium
+check_playwright_chrome
