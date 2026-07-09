@@ -48,6 +48,17 @@ require_executable() {
   fi
 }
 
+check_missing_command_behavior() {
+  local missing_command=agentbox-smoke-command-that-does-not-exist
+  local status
+
+  set +e
+  env "${missing_command}" >/tmp/agentbox-smoke-missing-command.out 2>/tmp/agentbox-smoke-missing-command.err
+  status=$?
+  set -e
+  require_equal "missing command exit status" "${status}" "127"
+}
+
 check_runtime_identity() {
   require_equal "runtime user" "$(id -un)" "agent"
   require_equal "runtime uid" "$(id -u)" "1000"
@@ -153,6 +164,35 @@ check_python_surface() {
   require_equal "python major version" "$(python -c 'import sys; print(sys.version_info[0])')" "3"
 }
 
+check_user_tool_environment() {
+  local smoke_command
+  local smoke_git
+
+  require_equal "npm global prefix" "$(npm config get prefix)" "/home/agent/.local"
+  require_equal "npm cache" "$(npm config get cache)" "/home/agent/.cache/npm"
+  require_equal "pnpm global bin" "$(pnpm bin -g)" "/home/agent/.local/share/pnpm/bin"
+
+  require_dir /home/agentbox
+  require_writable /home/agentbox
+  require_executable /home/agentbox
+
+  smoke_command=/home/agent/.local/bin/agentbox-smoke-user-bin
+  printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" user-bin-ok' >"${smoke_command}"
+  chmod +x "${smoke_command}"
+  require_equal "user bin PATH command" "$(agentbox-smoke-user-bin)" "user-bin-ok"
+
+  smoke_git=/home/agent/.local/bin/git
+  printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" shadowed-git' >"${smoke_git}"
+  chmod +x "${smoke_git}"
+  if [ "$(command -v git)" = "${smoke_git}" ]; then
+    fail "user PATH entries must not shadow system git"
+  fi
+  if [ "$(bash -lc 'command -v git')" = "${smoke_git}" ]; then
+    fail "login shell user PATH entries must not shadow system git"
+  fi
+  rm -f "${smoke_command}" "${smoke_git}"
+}
+
 check_passwordless_sudo() {
   require_equal "sudo root uid" "$(sudo -n id -u)" "0"
   require_equal "sudo root gid" "$(sudo -n -u root -g root id -g)" "0"
@@ -221,5 +261,7 @@ check_passwordless_sudo
 check_fuse_surface
 check_docker_client_surface
 check_python_surface
+check_missing_command_behavior
+check_user_tool_environment
 check_local_tool_behaviors
 check_playwright_chrome

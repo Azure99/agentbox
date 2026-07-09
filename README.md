@@ -26,6 +26,8 @@ docker run --rm -it --platform linux/amd64 \
 
 Add `--group-add "$(stat -c '%g' /var/run/docker.sock)"` and `-v /var/run/docker.sock:/var/run/docker.sock` if you need the host Docker socket. The image includes only the Docker client.
 
+The default user is `agent`; you may set `--user root`. For arbitrary numeric UIDs, pass `-e HOME=/home/agentbox`.
+
 ## Build from Source
 
 Requires Docker with buildx and GNU Make.

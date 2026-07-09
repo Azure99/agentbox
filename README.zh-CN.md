@@ -26,6 +26,8 @@ docker run --rm -it --platform linux/amd64 \
 
 需要宿主 Docker socket 时，在 `docker run` 中加入 `--group-add "$(stat -c '%g' /var/run/docker.sock)"` 和 `-v /var/run/docker.sock:/var/run/docker.sock`。镜像仅含 Docker client。
 
+默认用户是 `agent`；可以指定 `--user root`。使用任意数字 UID 时，请同时传入 `-e HOME=/home/agentbox`。
+
 ## 从源码构建
 
 需要 Docker with buildx、GNU Make。

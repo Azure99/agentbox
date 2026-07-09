@@ -10,23 +10,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV TZ=Etc/UTC
-ENV HOME=/home/agent
-ENV XDG_CACHE_HOME=/home/agent/.cache
-ENV XDG_CONFIG_HOME=/home/agent/.config
-ENV XDG_DATA_HOME=/home/agent/.local/share
-ENV XDG_STATE_HOME=/home/agent/.local/state
-ENV PIP_CACHE_DIR=/home/agent/.cache/pip
-ENV UV_CACHE_DIR=/home/agent/.cache/uv
-ENV PIPX_HOME=/home/agent/.local/share/pipx
-ENV PIPX_BIN_DIR=/home/agent/.local/bin
-ENV NPM_CONFIG_PREFIX=/home/agent/.local
-ENV NPM_CONFIG_CACHE=/home/agent/.cache/npm
-ENV PNPM_HOME=/home/agent/.local/share/pnpm
-ENV GOPATH=/home/agent/go
-ENV GOBIN=/home/agent/go/bin
-ENV GOCACHE=/home/agent/.cache/go-build
 ENV RUSTUP_HOME=/opt/rust/rustup
-ENV PATH=/home/agent/.local/bin:/home/agent/.local/share/pnpm:/home/agent/go/bin:/home/agent/.cargo/bin:/opt/npm-global/bin:/usr/local/go/bin:/opt/rust/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV PATH=/opt/npm-global/bin:/usr/local/go/bin:/opt/rust/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/agent/.local/bin:/home/agent/.local/share/pnpm/bin:/home/agent/go/bin:/home/agent/.cargo/bin:/root/.local/bin:/root/.local/share/pnpm/bin:/root/go/bin:/root/.cargo/bin:/home/agentbox/.local/bin:/home/agentbox/.local/share/pnpm/bin:/home/agentbox/go/bin:/home/agentbox/.cargo/bin
 
 # Base apt carrying surface.
 RUN apt-get update \
@@ -144,6 +129,8 @@ RUN set -eux; \
     ln -sf /opt/node/bin/npx /usr/local/bin/npx; \
     rm -f /opt/node/bin/corepack; \
     rm -rf /opt/node/lib/node_modules/corepack; \
+    mkdir -p /opt/node/etc; \
+    printf '%s\n' 'prefix=${HOME}/.local' 'cache=${HOME}/.cache/npm' >/opt/node/etc/npmrc; \
     node --version; \
     npm --version; \
     npx --version; \
@@ -291,7 +278,11 @@ RUN if getent passwd 1000 >/dev/null; then userdel --remove "$(getent passwd 100
         /home/agent/.cargo/bin \
         /home/agent/go \
         /home/agent/go/bin \
+        /home/agentbox \
     && chown -R agent:agent /workspace /home/agent \
+    && sed -i '/^# set PATH so it includes/,/^fi$/d' /home/agent/.profile \
+    && chmod 0711 /root /home/agent \
+    && chmod 1777 /workspace /home/agentbox \
     && chmod 0700 /home/agent/.ssh
 
 COPY --chmod=0755 scripts/agentbox-entrypoint.sh /usr/local/bin/agentbox-entrypoint
