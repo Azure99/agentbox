@@ -78,6 +78,8 @@ check_command_surface() {
     jq
     rg
     fd
+    bindfs
+    fusermount3
     fzf
     python
     python3
@@ -94,6 +96,7 @@ check_command_surface() {
     sqlite3
     zstd
     socat
+    sudo
     wget
     ffmpeg
     ffprobe
@@ -150,6 +153,17 @@ check_python_surface() {
   require_equal "python major version" "$(python -c 'import sys; print(sys.version_info[0])')" "3"
 }
 
+check_passwordless_sudo() {
+  require_equal "sudo root uid" "$(sudo -n id -u)" "0"
+  require_equal "sudo root gid" "$(sudo -n -u root -g root id -g)" "0"
+}
+
+check_fuse_surface() {
+  if ! grep -qxF user_allow_other /etc/fuse.conf; then
+    fail "/etc/fuse.conf must enable user_allow_other for bindfs"
+  fi
+}
+
 check_local_tool_behaviors() {
   local font_match
   local zstd_round_trip
@@ -203,6 +217,8 @@ NODE
 
 check_runtime_identity
 check_command_surface
+check_passwordless_sudo
+check_fuse_surface
 check_docker_client_surface
 check_python_surface
 check_local_tool_behaviors

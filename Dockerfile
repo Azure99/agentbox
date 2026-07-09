@@ -32,6 +32,7 @@ ENV PATH=/home/agent/.local/bin:/home/agent/.local/share/pnpm:/home/agent/go/bin
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
+        bindfs \
         cmake \
         ninja-build \
         pkg-config \
@@ -51,6 +52,7 @@ RUN apt-get update \
         shfmt \
         ripgrep \
         fd-find \
+        fuse3 \
         fzf \
         less \
         rsync \
@@ -60,6 +62,7 @@ RUN apt-get update \
         git-delta \
         netcat-openbsd \
         socat \
+        sudo \
         httpie \
         tzdata \
         unzip \
@@ -104,6 +107,8 @@ RUN apt-get update \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd \
     && test -x /usr/bin/batcat \
     && ln -sf /usr/bin/batcat /usr/local/bin/bat \
+    && sed -i 's/^#user_allow_other/user_allow_other/' /etc/fuse.conf \
+    && grep -qxF user_allow_other /etc/fuse.conf \
     && rm -rf /var/lib/apt/lists/*
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -259,6 +264,10 @@ RUN if getent passwd 1000 >/dev/null; then userdel --remove "$(getent passwd 100
     && groupadd --gid 1000 agent \
     && rm -rf /home/agent \
     && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash agent \
+    && install -d -m 0755 /etc/sudoers.d \
+    && printf '%s\n' 'agent ALL=(ALL:ALL) NOPASSWD:ALL' >/etc/sudoers.d/agent \
+    && chmod 0440 /etc/sudoers.d/agent \
+    && visudo -cf /etc/sudoers.d/agent \
     && rm -rf \
         /home/agent/.cache/npm \
         /home/agent/.local/state/gh \
