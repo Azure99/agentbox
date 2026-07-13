@@ -8,20 +8,32 @@
 
 ## 使用
 
+拉起容器，并为 Codex CLI 和 Claude Code 生成好配置：
+
 ```bash
 docker pull azure99/agentbox:latest
 
-# `AB_GEN_CODEX_CONFIG=true` 和 `AB_GEN_CLAUDE_CONFIG=true` 会根据 API 环境变量生成 CLI 配置文件。
 docker run --rm -it --platform linux/amd64 \
-  -e AB_GEN_CODEX_CONFIG=true \
   -e AB_GEN_CLAUDE_CONFIG=true \
-  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-  -e OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}" \
   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   -e ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}" \
-  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
   azure99/agentbox:latest
 ```
+
+### 环境变量
+
+| 变量 | 说明 |
+| --- | --- |
+| `AB_GEN_CODEX_CONFIG` | 设为 `true` 时，根据 `OPENAI_*` 变量生成 Codex CLI 配置文件 |
+| `OPENAI_API_KEY` | Codex CLI 使用的 API 密钥 |
+| `OPENAI_BASE_URL` | 可选，自定义 API 端点 |
+| `AB_GEN_CLAUDE_CONFIG` | 设为 `true` 时，根据 `ANTHROPIC_*` 变量生成 Claude Code 配置文件 |
+| `ANTHROPIC_API_KEY` | Claude Code 使用的 API 密钥 |
+| `ANTHROPIC_BASE_URL` | 可选，自定义 API 端点 |
+| `GITHUB_TOKEN` | 可选，GitHub CLI（`gh`）认证用 |
+| `AB_DIND` | 设为 `true` 时启用容器内 dockerd，需配合 `--privileged`，见下节 |
+
+### 容器内使用 Docker
 
 镜像已安装 Docker Engine，但默认不会启动 `dockerd`。使用以下任一模式：
 
@@ -30,31 +42,29 @@ docker run --rm -it --platform linux/amd64 \
 
 如需持久化 DinD 数据，请显式挂载 `/var/lib/docker`。
 
-默认用户是 `agent`；可以指定 `--user root`。非 DinD 模式下使用任意数字 UID 时，请同时传入 `-e HOME=/home/agentbox`。DinD 模式只支持默认 `agent` 用户和 `--user root`。
+### 运行用户
+
+默认用户是 `agent`，也可以指定 `--user root`；DinD 模式只支持这两种。非 DinD 模式下使用任意数字 UID 时，请同时传入 `-e HOME=/home/agentbox`。
 
 ## 从源码构建
 
 需要 Docker with buildx、GNU Make。
 
 ```bash
-make build           # 构建并加载 agentbox:v1
-make test            # build + smoke 检查
-make dind-smoke      # privileged DinD smoke 检查
-make shell           # 交互式容器，./work → /workspace
-make dind-shell      # 启动带内部 dockerd 的 privileged 交互式容器
-make refresh         # --pull --no-cache 全量重建
-make release-build   # 从最新可达 Git tag 快照构建
+make build   # 构建并加载 agentbox:v1
+make test    # build + smoke 检查
+make shell   # 交互式容器，./work → /workspace
 ```
 
-自定义工作区（路径须已存在）：
+其余见 [Makefile](Makefile)。
+
+进阶用法：
 
 ```bash
+# 自定义工作区（路径须已存在）
 WORKSPACE_DIR=/path/to/work make shell
-```
 
-通过本地代理构建：
-
-```bash
+# 通过本地代理构建
 http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 \
   BUILD_NETWORK=host make build
 ```

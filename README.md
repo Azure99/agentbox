@@ -8,20 +8,32 @@ Preinstalled tools: Python (pipx/uv/uvx), Node (npm/npx/pnpm), Go, Rust, Playwri
 
 ## Usage
 
+Start a container with Codex CLI and Claude Code configured:
+
 ```bash
 docker pull azure99/agentbox:latest
 
-# `AB_GEN_CODEX_CONFIG=true` and `AB_GEN_CLAUDE_CONFIG=true` generate CLI config files from API env vars.
 docker run --rm -it --platform linux/amd64 \
-  -e AB_GEN_CODEX_CONFIG=true \
   -e AB_GEN_CLAUDE_CONFIG=true \
-  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
-  -e OPENAI_BASE_URL="${OPENAI_BASE_URL:-https://api.openai.com/v1}" \
   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   -e ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}" \
-  -e GITHUB_TOKEN="$GITHUB_TOKEN" \
   azure99/agentbox:latest
 ```
+
+### Environment Variables
+
+| Variable | Description |
+| --- | --- |
+| `AB_GEN_CODEX_CONFIG` | Set to `true` to generate a Codex CLI config file from `OPENAI_*` variables |
+| `OPENAI_API_KEY` | API key used by Codex CLI |
+| `OPENAI_BASE_URL` | Optional custom API endpoint |
+| `AB_GEN_CLAUDE_CONFIG` | Set to `true` to generate a Claude Code config file from `ANTHROPIC_*` variables |
+| `ANTHROPIC_API_KEY` | API key used by Claude Code |
+| `ANTHROPIC_BASE_URL` | Optional custom API endpoint |
+| `GITHUB_TOKEN` | Optional token for GitHub CLI (`gh`) authentication |
+| `AB_DIND` | Set to `true` to enable the internal `dockerd`; requires `--privileged`, as described below |
+
+### Using Docker in the Container
 
 Docker Engine is installed, but `dockerd` does not start by default. Choose one mode:
 
@@ -30,31 +42,29 @@ Docker Engine is installed, but `dockerd` does not start by default. Choose one 
 
 Mount `/var/lib/docker` explicitly to persist DinD data.
 
-The default user is `agent`; you may set `--user root`. For arbitrary numeric UIDs in non-DinD mode, pass `-e HOME=/home/agentbox`. DinD mode is supported for the default `agent` user and `--user root` only.
+### Runtime User
+
+The default user is `agent`; you may also set `--user root`. DinD mode supports only these two options. For arbitrary numeric UIDs in non-DinD mode, pass `-e HOME=/home/agentbox`.
 
 ## Build from Source
 
 Requires Docker with buildx and GNU Make.
 
 ```bash
-make build           # Build and load agentbox:v1
-make test            # build + smoke checks
-make dind-smoke      # Privileged DinD smoke checks
-make shell           # Interactive container, ./work -> /workspace
-make dind-shell      # Privileged interactive container with internal dockerd
-make refresh         # Full rebuild with --pull --no-cache
-make release-build   # Build from the latest reachable Git tag snapshot
+make build   # Build and load agentbox:v1
+make test    # build + smoke checks
+make shell   # Interactive container, ./work -> /workspace
 ```
 
-Custom workspace (the path must already exist):
+See [Makefile](Makefile) for other targets.
+
+Advanced usage:
 
 ```bash
+# Custom workspace (the path must already exist)
 WORKSPACE_DIR=/path/to/work make shell
-```
 
-Build through a local proxy:
-
-```bash
+# Build through a local proxy
 http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 \
   BUILD_NETWORK=host make build
 ```
