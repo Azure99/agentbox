@@ -4,7 +4,7 @@
 FROM ubuntu:24.04
 
 LABEL org.opencontainers.image.title="agentbox" \
-      org.opencontainers.image.description="Ubuntu 24.04 linux/amd64 personal agent box with language runtimes, agent CLIs, Chrome, and distro build/debug/data/media/PDF/font tools"
+      org.opencontainers.image.description="Ubuntu 24.04 linux/amd64 personal agent box with language runtimes, agent CLIs, Chrome, Docker Engine, and distro build/debug/data/media/PDF/font tools"
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
@@ -209,7 +209,10 @@ RUN set -eux; \
     GH_TELEMETRY=false GH_NO_UPDATE_NOTIFIER=1 GH_NO_EXTENSION_UPDATE_NOTIFIER=1 gh --version; \
     rm -rf /var/lib/apt/lists/*
 
-# Docker CLI and CLI plugins from the official apt repository; daemon intentionally omitted.
+# Docker Engine, CLI, and CLI plugins from the official apt repository.
+ARG DIND_COMMIT=8d9e3502aba39127e4d12196dae16d306f76993d
+ARG DOCKER_LIBRARY_COMMIT=22153729f8e66965453369679338e94e614e1d96
+# The pinned dockerd-entrypoint.sh delegates rootful DinD setup to /usr/local/bin/dind when present.
 RUN set -eux; \
     install -m 0755 -d /etc/apt/keyrings; \
     curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused --output /etc/apt/keyrings/docker.asc https://download.docker.com/linux/ubuntu/gpg; \
@@ -227,22 +230,24 @@ RUN set -eux; \
         >/etc/apt/sources.list.d/docker.sources; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-        docker-ce-cli \
+        docker-ce \
         docker-buildx-plugin \
         docker-compose-plugin; \
+    curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused --output /usr/local/bin/dind "https://raw.githubusercontent.com/docker/docker/${DIND_COMMIT}/hack/dind"; \
+    curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused --output /usr/local/bin/dockerd-entrypoint.sh "https://raw.githubusercontent.com/docker-library/docker/${DOCKER_LIBRARY_COMMIT}/dockerd-entrypoint.sh"; \
+    chmod 0755 /usr/local/bin/dind; \
+    chmod 0755 /usr/local/bin/dockerd-entrypoint.sh; \
+    ln -sf /usr/libexec/docker/docker-init /usr/local/bin/docker-init; \
+    mkdir -p /usr/local/sbin/.iptables-legacy; \
+    for command_name in iptables iptables-save iptables-restore ip6tables ip6tables-save ip6tables-restore; do \
+        legacy_command_path="$(command -v "${command_name/tables/tables-legacy}")"; \
+        ln -sf "${legacy_command_path}" "/usr/local/sbin/.iptables-legacy/${command_name}"; \
+    done; \
     docker --version; \
+    dockerd --version; \
+    docker-init --version; \
     docker buildx version; \
     docker compose version; \
-    if command -v dockerd >/dev/null 2>&1; then \
-        echo "dockerd must not be installed; this image is Docker client only" >&2; \
-        exit 1; \
-    fi; \
-    for package_name in docker-ce containerd.io docker-ce-rootless-extras docker.io docker-compose docker-compose-v2; do \
-        if dpkg-query -W -f='${db:Status-Abbrev}' "${package_name}" 2>/dev/null | grep -q '^i'; then \
-            echo "unexpected Docker daemon/runtime package: ${package_name}" >&2; \
-            exit 1; \
-        fi; \
-    done; \
     rm -rf /var/lib/apt/lists/*
 
 # Runtime user and permission boundary.
@@ -286,6 +291,8 @@ RUN if getent passwd 1000 >/dev/null; then userdel --remove "$(getent passwd 100
     && chmod 0700 /home/agent/.ssh
 
 COPY --chmod=0755 scripts/agentbox-entrypoint.sh /usr/local/bin/agentbox-entrypoint
+
+VOLUME /var/lib/docker
 
 USER agent
 WORKDIR /workspace

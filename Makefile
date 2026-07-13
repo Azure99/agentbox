@@ -5,7 +5,7 @@ SUPPORTED_PLATFORM := linux/amd64
 IMAGE_REF := $(IMAGE):$(TAG)
 WORKSPACE_DIR ?= work
 SMOKE_SCRIPT := scripts/smoke.sh
-SMOKE_SCRIPT_CONTAINER := /tmp/agentbox-smoke.sh
+SMOKE_SCRIPT_CONTAINER := /usr/local/share/agentbox-smoke.sh
 BUILD_ARGS ?=
 BUILD_NETWORK ?=
 ifdef BUILD_NETWORK
@@ -24,7 +24,8 @@ ifdef HTTPS_PROXY
 BUILD_ARGS += --build-arg HTTPS_PROXY=$(HTTPS_PROXY)
 endif
 
-.PHONY: build refresh shell smoke test help check-platform release-build
+.PHONY: build refresh shell dind-shell smoke dind-smoke test help check-platform release-build
+.NOTPARALLEL: test
 
 .DEFAULT_GOAL := help
 
@@ -46,8 +47,12 @@ release-build: check-platform
 	HTTP_PROXY='$(HTTP_PROXY)' HTTPS_PROXY='$(HTTPS_PROXY)' \
 	scripts/release-build.sh
 
-shell: check-platform
-	@workspace_dir='$(WORKSPACE_DIR)'; \
+shell dind-shell: check-platform
+	@set --; \
+	if [ '$@' = 'dind-shell' ]; then \
+		set -- --privileged --cgroupns=private -e AB_DIND=true; \
+	fi; \
+	workspace_dir='$(WORKSPACE_DIR)'; \
 	case "$$workspace_dir" in \
 		/*) workspace_host_dir="$$workspace_dir" ;; \
 		*) workspace_host_dir="$$PWD/$$workspace_dir" ;; \
@@ -64,20 +69,23 @@ shell: check-platform
 		printf '%s\n' "WORKSPACE_DIR must be a directory: $$workspace_host_dir" >&2; \
 		exit 1; \
 	fi; \
-	docker run --rm -it --platform $(PLATFORM) -v "$$workspace_host_dir:/workspace" -w /workspace $(IMAGE_REF)
+	docker run --rm -it --platform $(PLATFORM) "$$@" -v "$$workspace_host_dir:/workspace" -w /workspace $(IMAGE_REF)
 
 smoke: check-platform
 	@set -eu; \
 	tmpdir="$$(mktemp -d)"; \
 	trap 'rm -rf "$$tmpdir"' EXIT INT TERM; \
 	chmod 0777 "$$tmpdir"; \
-	docker run --rm --platform $(PLATFORM) \
+	docker run --rm --network none --hostname localhost --platform $(PLATFORM) \
 		-v "$$tmpdir:/workspace" \
 		-v "$$PWD/$(SMOKE_SCRIPT):$(SMOKE_SCRIPT_CONTAINER):ro" \
 		-w /workspace \
 		$(IMAGE_REF) \
 		bash $(SMOKE_SCRIPT_CONTAINER); \
 	test -s "$$tmpdir/.agentbox-smoke-write-ok"
+
+dind-smoke: check-platform
+	IMAGE_REF='$(IMAGE_REF)' PLATFORM='$(PLATFORM)' bash scripts/smoke-host.sh
 
 test: build smoke
 
@@ -89,7 +97,9 @@ help:
 		'  release-build  Build and load IMAGE:<latest-reachable-git-tag>-<UTC-date> from the current checkout'\''s latest reachable git tag snapshot.' \
 		'  shell     Start an interactive container with WORKSPACE_DIR mounted at /workspace.' \
 		'            Only missing default ./work is auto-created and chmodded 0777; custom workspaces must already exist as directories.' \
+		'  dind-shell  Start a privileged interactive container with an internal dockerd.' \
 		'  smoke     Run a lightweight core runtime sanity gate.' \
+		'  dind-smoke  Run the DinD-only smoke gate in a privileged container.' \
 		'  test      Build $(IMAGE_REF), then run smoke.' \
 		'  help      Show this help.' \
 		'' \
@@ -97,7 +107,7 @@ help:
 		'  IMAGE             Image name. Default: $(IMAGE)' \
 		'  TAG               Image tag. Default: $(TAG)' \
 		'  PLATFORM          Target platform. Only $(SUPPORTED_PLATFORM) is supported; other values fail before Docker.' \
-		'  WORKSPACE_DIR     Host workspace for shell. Default: $(WORKSPACE_DIR)' \
+		'  WORKSPACE_DIR     Host workspace for shell and dind-shell. Default: $(WORKSPACE_DIR)' \
 		'  BUILD_NETWORK     Optional docker build network mode.' \
 		'  http_proxy        Optional build-time proxy input.' \
 		'  https_proxy       Optional build-time proxy input.' \

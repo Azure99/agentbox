@@ -107,6 +107,8 @@ check_command_surface() {
     sqlite3
     zstd
     socat
+    pgrep
+    mountpoint
     sudo
     wget
     ffmpeg
@@ -138,22 +140,36 @@ check_command_surface() {
   done
 }
 
-check_docker_client_surface() {
-  local package_name
-
+check_docker_engine_surface() {
   docker --version >/dev/null
+  dockerd --version >/dev/null
   docker buildx version >/dev/null
   docker compose version >/dev/null
 
-  if command -v dockerd >/dev/null 2>&1; then
-    fail "dockerd must not be installed; this image is Docker client only"
+  if [ "${AB_DIND:-}" != "true" ] && pgrep -x dockerd >/dev/null 2>&1; then
+    fail "dockerd must not run unless AB_DIND=true"
   fi
+}
 
-  for package_name in docker-ce containerd.io docker-ce-rootless-extras docker.io docker-compose docker-compose-v2; do
-    if dpkg-query -W -f='${db:Status-Abbrev}' "${package_name}" 2>/dev/null | grep -q '^i'; then
-      fail "${package_name} must not be installed; this image is Docker client only"
-    fi
-  done
+check_dockerd_runtime() {
+  local build_dir
+  local docker_init
+  local image_name
+
+  build_dir="$(mktemp -d /tmp/agentbox-smoke-dind.XXXXXX)"
+  image_name=agentbox-smoke-dind:smoke
+  docker_init="$(command -v docker-init)"
+
+  cp "${docker_init}" "${build_dir}/docker-init"
+
+  cat >"${build_dir}/Dockerfile" <<'EOF'
+FROM scratch
+COPY docker-init /docker-init
+CMD ["/docker-init", "--version"]
+EOF
+
+  docker build -q -t "${image_name}" "${build_dir}" >/dev/null
+  docker run --rm "${image_name}" >/dev/null
 }
 
 check_python_surface() {
@@ -255,11 +271,16 @@ const { chromium } = require("/opt/playwright/node_modules/playwright");
 NODE
 }
 
+if [ "${AB_SMOKE_DIND_ONLY:-}" = "true" ]; then
+  check_dockerd_runtime
+  exit
+fi
+
 check_runtime_identity
 check_command_surface
 check_passwordless_sudo
 check_fuse_surface
-check_docker_client_surface
+check_docker_engine_surface
 check_python_surface
 check_missing_command_behavior
 check_user_tool_environment

@@ -4,7 +4,7 @@
 
 An all-in-one work image for AI agents.
 
-Preinstalled tools: Python (pipx/uv/uvx), Node (npm/npx/pnpm), Go, Rust, Playwright, Chrome, Codex CLI, Claude Code, GitHub CLI, Docker CLI (buildx/Compose), plus common build, debugging, networking, data, media, PDF, and font tools.
+Preinstalled tools: Python (pipx/uv/uvx), Node (npm/npx/pnpm), Go, Rust, Playwright, Chrome, Codex CLI, Claude Code, GitHub CLI, Docker Engine (buildx/Compose), plus common build, debugging, networking, data, media, PDF, and font tools.
 
 ## Usage
 
@@ -20,13 +20,17 @@ docker run --rm -it --platform linux/amd64 \
   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   -e ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}" \
   -e GITHUB_TOKEN="$GITHUB_TOKEN" \
-  -v "$PWD/work:/workspace" -w /workspace \
   azure99/agentbox:latest
 ```
 
-Add `--group-add "$(stat -c '%g' /var/run/docker.sock)"` and `-v /var/run/docker.sock:/var/run/docker.sock` if you need the host Docker socket. The image includes only the Docker client.
+Docker Engine is installed, but `dockerd` does not start by default. Choose one mode:
 
-The default user is `agent`; you may set `--user root`. For arbitrary numeric UIDs, pass `-e HOME=/home/agentbox`.
+- Host Docker daemon: add `--group-add "$(stat -c '%g' /var/run/docker.sock)"` and `-v /var/run/docker.sock:/var/run/docker.sock`.
+- Internal rootful DinD: add `--privileged`, `--cgroupns=private`, and `-e AB_DIND=true`.
+
+Mount `/var/lib/docker` explicitly to persist DinD data.
+
+The default user is `agent`; you may set `--user root`. For arbitrary numeric UIDs in non-DinD mode, pass `-e HOME=/home/agentbox`. DinD mode is supported for the default `agent` user and `--user root` only.
 
 ## Build from Source
 
@@ -35,9 +39,11 @@ Requires Docker with buildx and GNU Make.
 ```bash
 make build           # Build and load agentbox:v1
 make test            # build + smoke checks
+make dind-smoke      # Privileged DinD smoke checks
 make shell           # Interactive container, ./work -> /workspace
+make dind-shell      # Privileged interactive container with internal dockerd
 make refresh         # Full rebuild with --pull --no-cache
-make release-build   # Build a version tag from the latest git tag
+make release-build   # Build from the latest reachable Git tag snapshot
 ```
 
 Custom workspace (the path must already exist):

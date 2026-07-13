@@ -4,7 +4,7 @@
 
 为 AI Agent 准备的全家桶工作镜像。
 
-预装工具：Python (pipx/uv/uvx)、Node (npm/npx/pnpm)、Go、Rust、Playwright、Chrome、Codex CLI、Claude Code、GitHub CLI、Docker CLI (buildx/Compose)，以及常见构建、调试、网络、数据、媒体、PDF、字体工具。
+预装工具：Python (pipx/uv/uvx)、Node (npm/npx/pnpm)、Go、Rust、Playwright、Chrome、Codex CLI、Claude Code、GitHub CLI、Docker Engine (buildx/Compose)，以及常见构建、调试、网络、数据、媒体、PDF、字体工具。
 
 ## 使用
 
@@ -20,13 +20,17 @@ docker run --rm -it --platform linux/amd64 \
   -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
   -e ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL:-https://api.anthropic.com}" \
   -e GITHUB_TOKEN="$GITHUB_TOKEN" \
-  -v "$PWD/work:/workspace" -w /workspace \
   azure99/agentbox:latest
 ```
 
-需要宿主 Docker socket 时，在 `docker run` 中加入 `--group-add "$(stat -c '%g' /var/run/docker.sock)"` 和 `-v /var/run/docker.sock:/var/run/docker.sock`。镜像仅含 Docker client。
+镜像已安装 Docker Engine，但默认不会启动 `dockerd`。使用以下任一模式：
 
-默认用户是 `agent`；可以指定 `--user root`。使用任意数字 UID 时，请同时传入 `-e HOME=/home/agentbox`。
+- 宿主 Docker daemon：添加 `--group-add "$(stat -c '%g' /var/run/docker.sock)"` 和 `-v /var/run/docker.sock:/var/run/docker.sock`。
+- 容器内 rootful DinD：添加 `--privileged`、`--cgroupns=private` 和 `-e AB_DIND=true`。
+
+如需持久化 DinD 数据，请显式挂载 `/var/lib/docker`。
+
+默认用户是 `agent`；可以指定 `--user root`。非 DinD 模式下使用任意数字 UID 时，请同时传入 `-e HOME=/home/agentbox`。DinD 模式只支持默认 `agent` 用户和 `--user root`。
 
 ## 从源码构建
 
@@ -35,9 +39,11 @@ docker run --rm -it --platform linux/amd64 \
 ```bash
 make build           # 构建并加载 agentbox:v1
 make test            # build + smoke 检查
+make dind-smoke      # privileged DinD smoke 检查
 make shell           # 交互式容器，./work → /workspace
+make dind-shell      # 启动带内部 dockerd 的 privileged 交互式容器
 make refresh         # --pull --no-cache 全量重建
-make release-build   # 用最新 git tag 打版本标签
+make release-build   # 从最新可达 Git tag 快照构建
 ```
 
 自定义工作区（路径须已存在）：
