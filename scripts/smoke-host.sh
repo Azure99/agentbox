@@ -47,6 +47,13 @@ expect_rejection() {
 
 run_smoke_script --privileged -e AB_DIND=true -e AB_SMOKE_DIND_ONLY=true
 
+daemon_config="${tmpdir}/invalid-daemon.json"
+printf '%s\n' '{ invalid-json' >"${daemon_config}"
+expect_rejection "daemon.json" \
+	--privileged \
+	-e AB_DIND=true \
+	-v "${daemon_config}:/etc/docker/daemon.json:ro"
+
 expect_rejection "DinD requires a private cgroup namespace" \
 	--cgroupns=host \
 	-e AB_DIND=true
@@ -64,7 +71,7 @@ signal_dir="${tmpdir}/signal"
 mkdir "${signal_dir}"
 chmod 0777 "${signal_dir}"
 signal_container="agentbox-smoke-signal-${BASHPID}-${RANDOM}"
-docker run -dit --privileged "${docker_run_args[@]}" \
+docker run -dit --log-driver json-file --privileged "${docker_run_args[@]}" \
 	--name "${signal_container}" \
 	-e AB_DIND=true \
 	-v "${signal_dir}:/probe" \
@@ -78,13 +85,25 @@ for _ in {1..60}; do
 	sleep 1
 done
 if [ ! -s "${signal_dir}/ready" ]; then
-	docker logs "${signal_container}" >&2
+	docker logs "${signal_container}" >&2 || :
 	fail "timed out waiting for the signal smoke payload"
+fi
+if ! docker exec "${signal_container}" test -r /run/agentbox/dockerd.log; then
+	docker logs "${signal_container}" >&2 || :
+	fail "dockerd log is not readable"
 fi
 docker stop --time 5 "${signal_container}" >/dev/null
 if [ ! -s "${signal_dir}/term" ]; then
-	docker logs "${signal_container}" >&2
+	docker logs "${signal_container}" >&2 || :
 	fail "DinD payload did not receive SIGTERM"
+fi
+if ! signal_output="$(docker logs "${signal_container}")"; then
+	fail "failed to read DinD TTY output"
+fi
+signal_output="${signal_output//$'\r'/}"
+if [ "${signal_output}" != "agentbox: dockerd is ready" ]; then
+	printf '%s\n' "${signal_output}" >&2
+	fail "unexpected DinD TTY output"
 fi
 docker rm -v "${signal_container}" >/dev/null
 signal_container=""

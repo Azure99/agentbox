@@ -42,17 +42,26 @@ check_docker_cgroupns() {
 }
 
 start_dockerd() {
+	local dockerd_log="/run/agentbox/dockerd.log"
+	local runtime_uid
 	local socket_group
+	runtime_uid="$(id -u)"
 	socket_group="$(id -g)"
 
-	if [ "$(id -u)" -eq 0 ]; then
+	if [ "${runtime_uid}" -eq 0 ]; then
+		install -d -m 0755 -o "${runtime_uid}" -g "${socket_group}" /run/agentbox
+	else
+		sudo -n install -d -m 0755 -o "${runtime_uid}" -g "${socket_group}" /run/agentbox
+	fi
+
+	if [ "${runtime_uid}" -eq 0 ]; then
 		TINI_SUBREAPER=1 setsid /usr/local/bin/dockerd-entrypoint.sh dockerd \
 			--host=unix:///var/run/docker.sock \
-			--group="${socket_group}" &
+			--group="${socket_group}" >"${dockerd_log}" 2>&1 &
 	else
 		TINI_SUBREAPER=1 setsid sudo -n -E /usr/local/bin/dockerd-entrypoint.sh dockerd \
 			--host=unix:///var/run/docker.sock \
-			--group="${socket_group}" &
+			--group="${socket_group}" >"${dockerd_log}" 2>&1 &
 	fi
 	dockerd_pid="$!"
 
@@ -62,13 +71,15 @@ start_dockerd() {
 			return
 		fi
 		if ! kill -0 "${dockerd_pid}" >/dev/null 2>&1; then
-			printf '%s\n' "agentbox: dockerd exited before becoming ready" >&2
+			printf '%s\n' "agentbox: dockerd exited before becoming ready; log follows (${dockerd_log})" >&2
+			tail -n 100 "${dockerd_log}" >&2 || :
 			exit 1
 		fi
 		sleep 1
 	done
 
-	printf '%s\n' "agentbox: timed out waiting for dockerd" >&2
+	printf '%s\n' "agentbox: timed out waiting for dockerd; log follows (${dockerd_log})" >&2
+	tail -n 100 "${dockerd_log}" >&2 || :
 	exit 1
 }
 
