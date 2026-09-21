@@ -7,21 +7,22 @@ WORKSPACE_DIR ?= work
 SMOKE_SCRIPT := scripts/smoke.sh
 SMOKE_SCRIPT_CONTAINER := /usr/local/share/agentbox-smoke.sh
 BUILD_ARGS ?=
+PROXY_BUILD_ARGS :=
 BUILD_NETWORK ?=
 ifdef BUILD_NETWORK
 BUILD_NETWORK_ARG := --network $(BUILD_NETWORK)
 endif
 ifdef http_proxy
-BUILD_ARGS += --build-arg http_proxy=$(http_proxy)
+PROXY_BUILD_ARGS += --build-arg http_proxy
 endif
 ifdef https_proxy
-BUILD_ARGS += --build-arg https_proxy=$(https_proxy)
+PROXY_BUILD_ARGS += --build-arg https_proxy
 endif
 ifdef HTTP_PROXY
-BUILD_ARGS += --build-arg HTTP_PROXY=$(HTTP_PROXY)
+PROXY_BUILD_ARGS += --build-arg HTTP_PROXY
 endif
 ifdef HTTPS_PROXY
-BUILD_ARGS += --build-arg HTTPS_PROXY=$(HTTPS_PROXY)
+PROXY_BUILD_ARGS += --build-arg HTTPS_PROXY
 endif
 
 .PHONY: build refresh shell dind-shell smoke dind-smoke test help check-platform release-build
@@ -36,15 +37,13 @@ check-platform:
 	fi
 
 build: check-platform
-	docker buildx build --pull --platform $(PLATFORM) $(BUILD_NETWORK_ARG) $(BUILD_ARGS) -t $(IMAGE_REF) --load .
+	docker buildx build --pull --platform $(PLATFORM) $(BUILD_NETWORK_ARG) $(PROXY_BUILD_ARGS) $(BUILD_ARGS) -t $(IMAGE_REF) --load .
 
 refresh: check-platform
-	docker buildx build --pull --no-cache --platform $(PLATFORM) $(BUILD_NETWORK_ARG) $(BUILD_ARGS) -t $(IMAGE_REF) --load .
+	docker buildx build --pull --no-cache --platform $(PLATFORM) $(BUILD_NETWORK_ARG) $(PROXY_BUILD_ARGS) $(BUILD_ARGS) -t $(IMAGE_REF) --load .
 
 release-build: check-platform
 	IMAGE='$(IMAGE)' PLATFORM='$(PLATFORM)' BUILD_NETWORK='$(BUILD_NETWORK)' \
-	http_proxy='$(http_proxy)' https_proxy='$(https_proxy)' \
-	HTTP_PROXY='$(HTTP_PROXY)' HTTPS_PROXY='$(HTTPS_PROXY)' \
 	scripts/release-build.sh
 
 shell dind-shell: check-platform
