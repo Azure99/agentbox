@@ -71,24 +71,6 @@ RUN apt-get update \
         fonts-liberation \
         fonts-noto-cjk \
         fonts-noto-color-emoji \
-        libasound2t64 \
-        libcairo2 \
-        libdbus-1-3 \
-        libdrm2 \
-        libgbm1 \
-        libglib2.0-0t64 \
-        libnspr4 \
-        libnss3 \
-        libpango-1.0-0 \
-        libx11-6 \
-        libx11-xcb1 \
-        libxcb1 \
-        libxext6 \
-        libxfixes3 \
-        libxkbcommon0 \
-        libxrandr2 \
-        libxrender1 \
-        libxshmfence1 \
     && ln -s /usr/bin/fdfind /usr/local/bin/fd \
     && test -x /usr/bin/batcat \
     && ln -sf /usr/bin/batcat /usr/local/bin/bat \
@@ -149,8 +131,7 @@ RUN set -eux; \
     tar -xzf "${build_home}/uv.tar.gz" -C "${build_home}"; \
     install -m 0755 "${build_home}/uv-x86_64-unknown-linux-gnu/uv" /usr/local/bin/uv; \
     install -m 0755 "${build_home}/uv-x86_64-unknown-linux-gnu/uvx" /usr/local/bin/uvx; \
-    yq_version=v4.53.3; \
-    curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused --output "${build_home}/yq" "https://github.com/mikefarah/yq/releases/download/${yq_version}/yq_linux_amd64"; \
+    curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused --output "${build_home}/yq" https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64; \
     install -m 0755 "${build_home}/yq" /usr/local/bin/yq; \
     go_file="$(curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused https://go.dev/dl/?mode=json | jq -er '[.[] | select(.stable == true)][0].files | map(select(.filename | test("^go[0-9][^/]*[.]linux-amd64[.]tar[.]gz$"))) | .[0].filename')"; \
     curl --fail --show-error --location --retry 5 --retry-delay 2 --retry-connrefused --output "${build_home}/go.tar.gz" "https://go.dev/dl/${go_file}"; \
@@ -163,9 +144,7 @@ RUN set -eux; \
     RUSTUP_HOME=/opt/rust/rustup CARGO_HOME=/opt/rust/cargo "${build_home}/rustup-init" -y --no-modify-path --profile minimal --default-host x86_64-unknown-linux-gnu --default-toolchain stable --component rustfmt --component clippy; \
     uv --version; \
     uvx --version; \
-    yq_actual="$(yq --version)"; \
-    echo "${yq_actual}"; \
-    [[ "${yq_actual}" == *" version ${yq_version}" ]]; \
+    yq --version; \
     go version; \
     RUSTUP_HOME=/opt/rust/rustup CARGO_HOME=/opt/rust/cargo /opt/rust/cargo/bin/rustup --version; \
     RUSTUP_HOME=/opt/rust/rustup CARGO_HOME=/opt/rust/cargo /opt/rust/cargo/bin/rustc --version; \
